@@ -1,0 +1,19 @@
+Readeck.app bundles the Readeck server engine.
+
+    Readeck — https://codeberg.org/readeck/readeck
+    Copyright © Olivier Meunier and contributors
+    Licensed under the GNU Affero General Public License, version 3 only
+    (AGPL-3.0-only).
+
+The bundled engine is redistributed UNMODIFIED and byte-identical to the
+upstream release `readeck-0.23.4-macos-arm64`, verified by SHA-256:
+
+    1c9f58b8d63a682c3a7ca2a6c6c267d5e2fbe31b47c606e21adc2195417b64d9
+
+Its complete corresponding source is available at:
+
+    https://codeberg.org/readeck/readeck/tree/0.23.4
+
+The macOS launcher is a separate program, written independently of Readeck. It
+does not modify, link against, or embed Readeck's code; it starts the engine as
+a separate process and presents the engine's own user interface.

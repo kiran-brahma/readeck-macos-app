@@ -1,0 +1,26 @@
+# Build output
+.build/
+dist/
+*.app
+
+# The Readeck engine is fetched by scripts/build.sh and verified by SHA-256.
+# Never committed: it is 65 MB, and its integrity must come from the pin.
+vendor/
+
+# Readeck runtime state. These live in ~/Library/Application Support/Readeck/ at
+# runtime, but are listed here defensively in case the engine is ever run with
+# this directory as its working directory.
+#
+# NEVER COMMIT ANY OF THESE. See README.md — "Never commit".
+data/
+backups/
+logs/
+config.toml
+launcher.json
+engine-version
+db.sqlite3
+db.sqlite3-wal
+db.sqlite3-shm
+
+# macOS
+.DS_Store
