@@ -21,6 +21,7 @@ enum Paths {
     static var backupsDirectory: URL { supportDirectory.appending(path: "backups", directoryHint: .isDirectory) }
     static var logFile: URL { supportDirectory.appending(path: "logs/server.log") }
     static var engineVersionFile: URL { supportDirectory.appending(path: "engine-version") }
+    static var databaseFile: URL { dataDirectory.appending(path: "db.sqlite3") }
 
     /// Held for the lifetime of the launcher, released by the kernel if it dies.
     static var lockFile: URL { supportDirectory.appending(path: ".launcher.lock") }

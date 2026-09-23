@@ -36,5 +36,20 @@ struct ReadeckApp: App {
                 }
         }
         .defaultSize(width: 1100, height: 760)
+        .commands {
+            CommandMenu("Tools") {
+                Button("Back Up Now") {
+                    Task { await model.backUpNow() }
+                }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+
+                Button("Reveal Backups in Finder") { model.revealBackups() }
+                Button("Reveal Log") { model.revealLog() }
+
+                Divider()
+
+                Button("Open Data Folder") { model.revealData() }
+            }
+        }
     }
 }

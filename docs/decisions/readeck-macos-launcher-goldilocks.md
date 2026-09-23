@@ -167,6 +167,12 @@ Consequence: after a Force Quit the engine **does** survive, and adoption is now
 
 Not a defect, recorded because it was misdiagnosed. `NSAlert.runModal()` called from a SwiftUI `.task` blocks until a button is pressed; it does not self-dismiss. An app that vanishes from a test harness is being dismissed by the person in front of it.
 
+### A4 — `VACUUM INTO` rather than `.backup`
+
+This review allowed either. Measured: `.backup` inherits the source database's WAL mode, so the snapshot is itself a WAL database and gains `-wal`/`-shm` sidecars the moment anything opens it. A "backup" that is three files, and it littered the backups directory during verification.
+
+`VACUUM INTO` writes a freshly built database in rollback journal mode, so each snapshot is one self-contained file, and it refuses to overwrite an existing destination, which makes clobbering a previous snapshot impossible rather than merely unlikely. Destinations are additionally made unique per second, because a pre-migration snapshot and a manual one can legitimately land in the same second.
+
 ---
 
 ## Rejected alternatives
@@ -253,10 +259,10 @@ Each slice is independently verifiable; none is a layer.
 
 ## Open questions
 
-None blocking. Two implementation details to settle during their slices, neither of which changes the design:
+None. Both were settled during implementation.
 
-- Whether `serve -port` overrides the port written into a freshly generated `config.toml` (we pin 8000 regardless).
-- Whether `readeck export` produces a portable all-in-one archive (affects `Back Up Now`'s implementation, not its interface).
+- **`serve -port` does not persist.** The flag overrides the listening port, but the generated `config.toml` still records `8000`. Moot here, since the app pins 8000 either way.
+- **`readeck export` is not a backup mechanism.** It requires an existing user — against an empty database it exits 1 with `ERROR: no user to export` — and produces an archive of user data for portability, not a restorable copy of the database. It is also unavailable before the first account exists. `VACUUM INTO` remains the snapshot mechanism.
 
 ---
 

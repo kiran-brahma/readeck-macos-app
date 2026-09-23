@@ -32,10 +32,6 @@ final class LauncherModel {
 
     var isServerRunning: Bool { server?.isRunning ?? false }
 
-    private var bundledEngineURL: URL {
-        Bundle.main.bundleURL.appending(path: "Contents/MacOS/readeck-server")
-    }
-
     func start() async {
         guard !hasStarted else { return }
         hasStarted = true
@@ -55,8 +51,39 @@ final class LauncherModel {
         self.server = nil
     }
 
+    // MARK: - Tools
+
+    /// Snapshots on demand.
+    ///
+    /// Safe while the server is running: SQLite's backup API is consistent
+    /// against a live database. The archives are left to Time Machine, since
+    /// duplicating them on demand could cost gigabytes.
+    func backUpNow() async {
+        do {
+            let destination = try await Task.detached {
+                try DatabaseSnapshot.create(label: "manual")
+            }.value
+            NSWorkspace.shared.activateFileViewerSelecting([destination])
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Backup failed"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
+    func revealBackups() {
+        NSWorkspace.shared.activateFileViewerSelecting([Paths.backupsDirectory])
+    }
+
     func revealLog() {
         NSWorkspace.shared.activateFileViewerSelecting([Paths.logFile])
+    }
+
+    func revealData() {
+        NSWorkspace.shared.activateFileViewerSelecting([Paths.dataDirectory])
     }
 
     // MARK: -
@@ -85,6 +112,20 @@ final class LauncherModel {
             return
         }
 
+        // The engine's own version decides whether migrations are pending, so it
+        // must be the version of the binary that will actually run them.
+        statusLine = "Reading the engine version…"
+        guard let bundledVersion = await Task.detached(operation: BundledEngine.version).value else {
+            state = .failed("""
+            The bundled Readeck engine did not report its version.
+
+            \(BundledEngine.url.path)
+
+            Refusing to start: without it there is no way to tell an upgrade from an ordinary start.
+            """)
+            return
+        }
+
         // Probe before spawning. Two writers on one SQLite WAL database is how a
         // library gets corrupted, and nothing in Readeck prevents a second
         // server from opening the same database.
@@ -93,26 +134,37 @@ final class LauncherModel {
         case .idle:
             break
 
-        case .readeck(let version):
-            // A Readeck is listening. Either it is the engine we started before
-            // we were killed, or it belongs to someone else.
+        case .readeck(let runningVersion):
             if let pid = orphanPid() {
-                statusLine = "Adopting the running Readeck…"
-                let server = ServerProcess(engineURL: bundledEngineURL, log: log)
-                wireUnexpectedExit(server)
-                server.adopt(pid: pid)
-                self.server = server
-                state = .ready(version: version)
+                if runningVersion == bundledVersion {
+                    // Our own engine, still running after a Force Quit. Adopt it:
+                    // no downtime, and no second writer.
+                    statusLine = "Adopting the running Readeck…"
+                    let server = ServerProcess(engineURL: BundledEngine.url, log: log)
+                    wireUnexpectedExit(server)
+                    server.adopt(pid: pid)
+                    self.server = server
+                    markReady(version: runningVersion)
+                    return
+                }
+
+                // Ours, but from a bundle that has since been replaced, so the
+                // running engine is not the one we would start. Stop it and let
+                // the normal path bring up the current engine.
+                statusLine = "Stopping the previous engine (\(runningVersion))…"
+                let stale = ServerProcess(engineURL: BundledEngine.url, log: log)
+                stale.adopt(pid: pid)
+                await stale.terminate()
+            } else {
+                block("""
+                A Readeck server is already listening on \(Paths.host):\(Paths.port), running engine \(runningVersion), \
+                and this app did not start it.
+
+                Quit that server first. This app will not run a second one against the same data \
+                directory, because two writers on one database is how a library gets corrupted.
+                """)
                 return
             }
-            block("""
-            A Readeck server is already listening on \(Paths.host):\(Paths.port), running engine \(version), \
-            and this app did not start it.
-
-            Quit that server first. This app will not run a second one against the same data \
-            directory, because two writers on one database is how a library gets corrupted.
-            """)
-            return
 
         case .foreign(let pid, let name):
             block("""
@@ -129,8 +181,30 @@ final class LauncherModel {
             return
         }
 
+        // Invariant I2: a snapshot must exist before a spawn that will run
+        // migrations, because migrations run inside `serve` and M07/M16 rewrite
+        // the archive files on disk.
+        if let recorded = EngineVersionRecord.read(), recorded != bundledVersion {
+            statusLine = "Backing up before upgrading \(recorded) → \(bundledVersion)…"
+            do {
+                _ = try await Task.detached {
+                    try DatabaseSnapshot.create(label: "before-\(bundledVersion)")
+                }.value
+            } catch {
+                state = .failed("""
+                Could not back up the database before upgrading \(recorded) → \(bundledVersion).
+
+                \(error.localizedDescription)
+
+                Refusing to start. This upgrade runs migrations, and two of them rewrite the
+                archived pages on disk.
+                """)
+                return
+            }
+        }
+
         statusLine = "Starting Readeck…"
-        let server = ServerProcess(engineURL: bundledEngineURL, log: log)
+        let server = ServerProcess(engineURL: BundledEngine.url, log: log)
         wireUnexpectedExit(server)
         do {
             try server.start()
@@ -139,7 +213,7 @@ final class LauncherModel {
             return
         }
         self.server = server
-        await waitUntilReady(server)
+        await waitUntilReady(server, bundledVersion: bundledVersion)
     }
 
     /// The recorded engine, if it is genuinely still running our binary.
@@ -149,7 +223,7 @@ final class LauncherModel {
     private func orphanPid() -> Int32? {
         guard let record = ServerRecord.read(),
               ProcessIdentity.isAlive(record.pid),
-              ProcessIdentity.executablePath(of: record.pid) == bundledEngineURL.path
+              ProcessIdentity.executablePath(of: record.pid) == BundledEngine.url.path
         else {
             ServerRecord.clear()
             return nil
@@ -157,13 +231,13 @@ final class LauncherModel {
         return record.pid
     }
 
-    private func waitUntilReady(_ server: ServerProcess) async {
+    private func waitUntilReady(_ server: ServerProcess, bundledVersion: String) async {
         // Readiness is an observed fact — /api/info answering — not elapsed time.
         let deadline = ContinuousClock.now + .seconds(30)
         while ContinuousClock.now < deadline {
             if Task.isCancelled { return }
             if case .readeck(let version) = await probe.probe() {
-                state = .ready(version: version)
+                markReady(version: version)
                 return
             }
             if server.isRunning == false {
@@ -187,6 +261,13 @@ final class LauncherModel {
 
         \(log.tail())
         """)
+    }
+
+    /// Records the version only once the server is confirmed up, so a failed
+    /// start never claims the database was migrated.
+    private func markReady(version: String) {
+        EngineVersionRecord.write(version)
+        state = .ready(version: version)
     }
 
     private func wireUnexpectedExit(_ server: ServerProcess) {
