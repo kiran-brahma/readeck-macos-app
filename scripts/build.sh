@@ -63,7 +63,15 @@ BIN_DIR="$(swift build -c release --package-path "${ROOT}" --show-bin-path)"
 BIN="${BIN_DIR}/${APP_NAME}"
 [[ -x "${BIN}" ]] || die "launcher binary not found: ${BIN}"
 
-# --- 5. assemble the bundle -------------------------------------------------
+# --- 5. icon ----------------------------------------------------------------
+# Derived from upstream artwork, so the icon is regenerated whenever the source
+# SVG changes. Only the SVG is committed; the .icns is a build artifact.
+if [[ ! -f "${ROOT}/Resources/AppIcon.icns" || "${ROOT}/Resources/logo-square.svg" -nt "${ROOT}/Resources/AppIcon.icns" ]]; then
+    log "building app icon from upstream artwork"
+    "${ROOT}/scripts/build-icon.sh"
+fi
+
+# --- 6. assemble the bundle -------------------------------------------------
 log "assembling ${APP_NAME}.app"
 rm -rf "${APP}"
 mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
@@ -83,7 +91,7 @@ if [[ -f "${ROOT}/Resources/AppIcon.icns" ]]; then
     cp "${ROOT}/Resources/AppIcon.icns" "${APP}/Contents/Resources/AppIcon.icns"
 fi
 
-# --- 6. sign ----------------------------------------------------------------
+# --- 7. sign ----------------------------------------------------------------
 # Ad-hoc only. Built locally and ad-hoc signed means no quarantine attribute is
 # ever set, so there is no Gatekeeper prompt and no trip to System Settings.
 log "signing (ad-hoc)"

@@ -8,6 +8,8 @@
 	<string>Readeck</string>
 	<key>CFBundleExecutable</key>
 	<string>Readeck</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>@BUNDLE_ID@</string>
 	<key>CFBundleInfoDictionaryVersion</key>

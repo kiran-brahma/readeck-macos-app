@@ -1,26 +1,39 @@
+import AppKit
 import SwiftUI
 
-/// Slice 1 skeleton.
+/// Stops the engine on quit, and waits for it.
 ///
-/// Deliberately does nothing but show a window. The build pipeline has to
-/// produce an ad-hoc signed bundle whose bundled engine is byte-identical to
-/// upstream before any lifecycle code is worth writing.
+/// A SwiftUI app has no built-in hook for "the user quit, run async cleanup", so
+/// this defers termination until the child has been reaped. Without it, quitting
+/// would orphan a running server holding port 8000 and the database.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var model: LauncherModel?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model, model.isServerRunning else { return .terminateNow }
+        Task { @MainActor in
+            await model.stop()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+}
+
 @main
 struct ReadeckApp: App {
+    @State private var model = LauncherModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
-            VStack(spacing: 10) {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.secondary)
-                Text("Readeck")
-                    .font(.title2.weight(.semibold))
-                Text("Build skeleton. The server lifecycle lands in slice 2.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(48)
-            .frame(minWidth: 520, minHeight: 360)
+            ContentView()
+                .environment(model)
+                .frame(minWidth: 640, minHeight: 460)
+                .task {
+                    appDelegate.model = model
+                    await model.start()
+                }
         }
         .defaultSize(width: 1100, height: 760)
     }

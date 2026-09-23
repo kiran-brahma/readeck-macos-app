@@ -3,6 +3,10 @@
 dist/
 *.app
 
+# App icon, derived from Resources/logo-square.svg by scripts/build-icon.sh
+Resources/AppIcon.icns
+Resources/AppIcon-1024.png
+
 # The Readeck engine is fetched by scripts/build.sh and verified by SHA-256.
 # Never committed: it is 65 MB, and its integrity must come from the pin.
 vendor/

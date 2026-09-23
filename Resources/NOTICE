@@ -17,3 +17,6 @@ Its complete corresponding source is available at:
 The macOS launcher is a separate program, written independently of Readeck. It
 does not modify, link against, or embed Readeck's code; it starts the engine as
 a separate process and presents the engine's own user interface.
+
+The application icon is Readeck's own `web/media/logo-square.svg`, redistributed
+unmodified, rendered from that file by scripts/build-icon.sh at build time.
