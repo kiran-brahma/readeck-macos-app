@@ -141,6 +141,34 @@ Every transition is driven by an observed fact, never by elapsed time. `ready` i
 
 ---
 
+## Amendments
+
+Corrections made during implementation, where evidence contradicted this review.
+
+### A1 — `flock` does not replace the PID record
+
+This review claimed `flock` plus one version string could replace `launcher.json`. That was wrong in one respect, and the deletion was partly undone.
+
+`flock` proves that no other **launcher** is running. It says nothing about which data directory a listening server is using. So an engine orphaned by a Force Quit is indistinguishable, by lock alone, from a Readeck started elsewhere — and those need opposite responses: adopt one, refuse the other.
+
+`ServerRecord` therefore returns, reduced to a single field: `{pid}`. Identity is confirmed by comparing `proc_pidpath(pid)` against the bundled engine's path, which also closes the PID-reuse hole the original `launcher.json` never addressed. The deletions that stood are `startedAt` and `port`, which really were never load-bearing.
+
+### A2 — the engine's stdout is a file, not a pipe
+
+This review did not specify how to capture stdout. A pipe is the obvious choice and is wrong here.
+
+Measured: with a pipe, Force Quitting the launcher leaves an engine that stops answering HTTP immediately and is **dead within ~5 seconds**. The read end dies with the launcher, so the engine's next log write raises SIGPIPE — and Go deliberately lets SIGPIPE kill a program writing to a dead fd 1 or 2.
+
+That is not a guarantee, it is an accident: an orphan self-destructs only if the engine happens to log, so an engine that stayed quiet would linger holding the database, and adoption could never be relied on. Redirecting stdout straight to the log file makes the behaviour deterministic and the log complete — output buffered in a pipe at crash time is otherwise lost, and this log is the only place Readeck reports a fatal error.
+
+Consequence: after a Force Quit the engine **does** survive, and adoption is now a real, tested path rather than a theoretical one.
+
+### A3 — a modal alert inside an async task waits for the user
+
+Not a defect, recorded because it was misdiagnosed. `NSAlert.runModal()` called from a SwiftUI `.task` blocks until a button is pressed; it does not self-dismiss. An app that vanishes from a test harness is being dismissed by the person in front of it.
+
+---
+
 ## Rejected alternatives
 
 - **C2 (external engine)** — rejected as speculative flexibility. Its benefit (engine bumps without rebuilding Swift) addresses a cost that is one shell command, while its price is a version-discovery module and a first-run path for a state that should not exist. Revisit only if rebuilding the wrapper becomes the bottleneck.
@@ -164,7 +192,7 @@ Each module owns one thing and is allowed to know as little as possible.
 | `BundledEngine` | Path and `version` output | The bundle | The data directory |
 | `ServerProcess` | The child process | Spawn arguments, stdout stream | Ownership, backups |
 | `DatabaseSnapshot` | Snapshot + prune | SQLite file names, retention count | Anything about why a snapshot was needed |
-| `LogSink` | `server.log` | Stdout bytes | Which bytes matter |
+| `LogSink` → `ServerLog` | The `server.log` file | The log path | Which lines matter |
 | `LauncherModel` | The state machine | All of the above | Nothing — it is the composition root |
 | `WebView`, views | Presentation | A URL and a state enum | Policy of any kind |
 
