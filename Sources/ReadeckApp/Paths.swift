@@ -10,8 +10,19 @@ enum Paths {
     static let port = 8000
     static let baseURL = URL(string: "http://\(host):\(port)/")!
 
+    /// Support directory override, used only by scripts/verify.sh.
+    ///
+    /// Foundation's `.applicationSupportDirectory` is derived from the password
+    /// database, not `$HOME`, so redirecting HOME does not isolate the app. This
+    /// seam lets verification run against a throwaway directory, which is what
+    /// keeps the destructive invariants (Force Quit, pre-migration snapshots)
+    /// checkable without risking a real library.
     static var supportDirectory: URL {
-        FileManager.default
+        if let override = ProcessInfo.processInfo.environment["READECK_LAUNCHER_HOME"],
+           !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appending(path: appName, directoryHint: .isDirectory)
     }

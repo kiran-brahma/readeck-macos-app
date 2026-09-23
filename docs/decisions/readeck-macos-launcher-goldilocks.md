@@ -236,6 +236,15 @@ Each slice is independently verifiable; none is a layer.
 
 ### Acceptance tests
 
+Slices 1–8 are implemented. The acceptance tests below are encoded in
+`scripts/verify.sh`, which runs against a throwaway `READECK_LAUNCHER_HOME` so
+it never touches a real library; it currently reports 35 checks passing.
+
+Three things are not machine-checkable and need a human: the Dock icon, the
+**Back Up Now** menu item, and `⌘W` keeping the app and server alive. (The last
+follows from `applicationShouldTerminateAfterLastWindowClosed` defaulting to
+false, which the app does not override — reasoned, not measured.)
+
 | # | Test | Passes when |
 |---|---|---|
 | 1 | Cold launch from Finder, no terminal | Onboarding loads (catches the CWD contract) |

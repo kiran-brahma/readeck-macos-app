@@ -21,6 +21,39 @@ launcher, assembles the bundle, and ad-hoc signs it.
 `vendor/` is an integrity pin, not a convenience: if the checksum ever fails to
 match, the script refuses to build. The engine is never patched.
 
+## Verify
+
+```sh
+./scripts/verify.sh      # 35 checks, about two minutes
+```
+
+Every check maps to an invariant in the design record. They are end-to-end on
+purpose: the failures worth catching are lifecycle ones — an orphaned engine, a
+second writer on one database, a migration that ran before its backup — and none
+of those are visible to a unit test.
+
+It runs against a throwaway directory, so it never touches your real library.
+Several checks are deliberately destructive (Force Quit, a faked engine upgrade,
+an unwritable backups directory) because that is what makes them worth running.
+
+The suite is launched directly, not via `open`, so the isolated directory reaches
+the child — everything the app does is driven by paths it computes itself, so the
+launch mechanism does not affect what is being tested.
+
+Two notes:
+
+- The port-blocked check briefly puts an alert on screen before killing it.
+- `READECK_LAUNCHER_HOME` is a **test seam, not a feature**. It exists because
+  Foundation derives the Application Support path from the password database
+  rather than `$HOME`, so redirecting HOME does not isolate the app. If it is set
+  in your shell, the app will use it instead of the real support directory.
+
+## Tools menu
+
+- **Back Up Now** (⇧⌘B) — a snapshot on demand. Safe while the server is running:
+  SQLite reads consistently against a live writer.
+- **Reveal Backups in Finder**, **Reveal Log**, **Open Data Folder**.
+
 ## Never commit
 
 The repository must stay **code only**. Four things hold secrets or private
@@ -43,8 +76,13 @@ that happens to contain the data directory.
 Package.swift                     Swift Package (no .xcodeproj)
 Sources/ReadeckApp/               the launcher
 Resources/Info.plist              bundle metadata (incl. NSAllowsLocalNetworking)
+Resources/logo-square.svg         Readeck's own artwork, unmodified
 Resources/NOTICE                  Readeck attribution + AGPL source offer
 scripts/build.sh                  fetch -> verify -> assemble -> sign
+scripts/verify.sh                 end-to-end acceptance suite
+scripts/build-icon.sh             SVG -> AppIcon.icns
+scripts/svg2png.swift             SVG rasteriser (macOS reads SVG natively)
+scripts/inspect-icon.swift        catches a blank or flattened icon render
 vendor/                           pinned engine, gitignored
 dist/                             built bundle, gitignored
 ```
@@ -65,19 +103,24 @@ Readeck.app/Contents/
 ```
 ~/Library/Application Support/Readeck/
 ├── config.toml          written by Readeck; holds secret_key
-├── engine-version       last engine that opened the database
-├── logs/server.log      captured stdout, rotated at launch
-├── backups/             pre-migration snapshots, last 3 kept
+├── engine-version       the engine that last opened the database
+├── server.json          pid of an engine we started, while it runs
+├── .launcher.lock       flock target, released by the kernel on exit
+├── logs/server.log      engine stdout, rotated past 5 MB
+├── backups/             pre-migration and manual snapshots, last 3 kept
 └── data/                db.sqlite3, bookmarks/, content-scripts/
 ```
 
 ## Upgrade
 
 Engine version is pinned in `scripts/build.sh`. To move to a new release, update
-`ENGINE_VERSION` and `ENGINE_SHA256`, then rebuild. A database snapshot is taken
+`ENGINE_VERSION` and `ENGINE_SHA256`, then rebuild. A snapshot is taken
 automatically before the first `serve` that runs a new engine version, because
 migrations run inside `serve` and two of them (M07, M16) rewrite the archive
 `.zip` files on disk.
+
+**If that snapshot cannot be written, the app refuses to start.** A failed backup
+is not something to log and move past when the next step rewrites files in place.
 
 ## Licensing
 
