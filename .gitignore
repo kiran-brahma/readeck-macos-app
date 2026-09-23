@@ -20,8 +20,9 @@ data/
 backups/
 logs/
 config.toml
-launcher.json
 engine-version
+server.json
+.launcher.lock
 db.sqlite3
 db.sqlite3-wal
 db.sqlite3-shm
