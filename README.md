@@ -84,15 +84,20 @@ attribute is the only thing that makes macOS refuse an ad-hoc signed app.
 
 ## Install from a release
 
+Set `tag` to the release you want. The
+[releases page](https://github.com/kiran-brahma/readeck-macos-app/releases) lists
+them.
+
 Download with `gh` or `curl`, not a browser.
 
 ```sh
-gh release download --repo kiran-brahma/readeck-macos-app -D ~/Downloads
-(cd ~/Downloads && shasum -a 256 -c Readeck-*-macos-arm64.zip.sha256)
-ditto -x -k ~/Downloads/Readeck-*-macos-arm64.zip /Applications
+tag=0.23.4-1
+gh release download "$tag" --repo kiran-brahma/readeck-macos-app -D ~/Downloads
+(cd ~/Downloads && shasum -a 256 -c "Readeck-$tag-macos-arm64.zip.sha256")
+ditto -x -k ~/Downloads/"Readeck-$tag-macos-arm64.zip" /Applications
 ```
 
-To do the same without `gh`, with the version spelled out:
+Without `gh`:
 
 ```sh
 tag=0.23.4-1
