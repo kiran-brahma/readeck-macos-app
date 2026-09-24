@@ -3,23 +3,92 @@
 A small native macOS launcher that runs a bundled, **unmodified** [Readeck](https://codeberg.org/readeck/readeck)
 server as a child process and shows Readeck's own UI in a `WKWebView`.
 
-Personal tool. One machine, one user. Not distributed, so there is no Sparkle,
-no appcast, no notarization, no Developer ID, no CI, and no universal binary.
+Built for one person on one machine, and published so others can run the same
+thing. There is no Sparkle, no appcast, no notarization, no Developer ID, no CI
+and no universal binary — [Requirements](#requirements) covers what that means in
+practice.
+
+Latest release: <https://github.com/kiran-brahma/readeck-macos-app/releases/latest>
+
 The design record is [`docs/decisions/readeck-macos-launcher-goldilocks.md`](docs/decisions/readeck-macos-launcher-goldilocks.md).
 
-## Build
+## Requirements
+
+- **macOS 14 or later.**
+- **Apple silicon (arm64).** There is no Intel build: the engine is pinned to
+  upstream's `darwin/arm64` artifact and nothing is built with `lipo`.
+- **Xcode**, for `swift`, `codesign`, `sips`, `iconutil` and `ditto`. The Swift
+  toolchain alone is not quite enough — the icon is rendered by a small Swift
+  program and packed with `iconutil`.
+- About 250 MB of disk for the first build (the 65 MB engine plus build output).
+
+No Homebrew, no package manager, and no third-party Swift packages. The icon is
+rasterised with macOS's own SVG support rather than `librsvg`, so there is nothing
+to install.
+
+## Build from source
 
 ```sh
-./scripts/build.sh          # -> dist/Readeck.app
+git clone https://github.com/kiran-brahma/readeck-macos-app.git
+cd readeck-macos-app
+./scripts/build.sh
 open dist/Readeck.app
 ```
 
-The script fetches the pinned upstream engine into `vendor/`, verifies it
-against a hard-coded SHA-256, strips `com.apple.quarantine`, builds the Swift
-launcher, assembles the bundle, and ad-hoc signs it.
+That is the whole build. `scripts/build.sh`:
 
-`vendor/` is an integrity pin, not a convenience: if the checksum ever fails to
-match, the script refuses to build. The engine is never patched.
+1. downloads the pinned engine into `vendor/` (gitignored, 65 MB, once)
+2. verifies it against upstream's published SHA-256
+3. strips `com.apple.quarantine`
+4. builds the launcher with `swift build -c release`
+5. renders the app icon from Readeck's own `logo-square.svg`
+6. assembles `dist/Readeck.app`
+7. ad-hoc signs it
+
+A later build takes seconds, because the engine is cached in `vendor/`.
+
+Building locally is also the only way to get an app macOS will open with **no
+Gatekeeper prompt at all**: a local build carries no `com.apple.quarantine`
+attribute, and that attribute is the only thing that makes macOS refuse an ad-hoc
+signed app.
+
+### Building a specific release
+
+```sh
+git checkout 0.23.4-1
+./scripts/build.sh
+```
+
+The tag is the Readeck engine version, so the app version and the engine version
+always agree. A launcher-only fix takes a revision suffix, as in `0.23.4-1`.
+
+### The engine is never patched
+
+`vendor/` is an integrity pin, not a convenience. If the checksum does not match
+upstream's published one, the build fails rather than bundling something else.
+That is what keeps this a thin launcher rather than a fork, and what keeps the
+AGPL boundary simple — see [Licensing](#licensing).
+
+## Install
+
+**From source**, which is the friction-free path:
+
+```sh
+./scripts/update.sh          # builds and installs to /Applications/Readeck.app
+```
+
+**From a release**, downloading with `gh` or `curl` rather than a browser:
+
+```sh
+gh release download --repo kiran-brahma/readeck-macos-app -D ~/Downloads
+(cd ~/Downloads && shasum -a 256 -c Readeck-*-macos-arm64.zip.sha256)
+ditto -x -k ~/Downloads/Readeck-*-macos-arm64.zip /Applications
+```
+
+`gh` and `curl` do not set `com.apple.quarantine`; browsers do. If you download in
+a browser, macOS refuses the first launch — open **System Settings → Privacy &
+Security** and click **Open Anyway** for Readeck. That is needed once per
+download, not once per launch.
 
 ## Verify
 
