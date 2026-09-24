@@ -173,6 +173,25 @@ This review allowed either. Measured: `.backup` inherits the source database's W
 
 `VACUUM INTO` writes a freshly built database in rollback journal mode, so each snapshot is one self-contained file, and it refuses to overwrite an existing destination, which makes clobbering a previous snapshot impossible rather than merely unlikely. Destinations are additionally made unique per second, because a pre-migration snapshot and a manual one can legitimately land in the same second.
 
+### A5 — "the window stays alive" also needed "and can be brought back"
+
+Q6 decided that closing the window keeps the app and server running, so the
+browser extension keeps working. It never asked how the window returns. The
+answer turned out to be "it doesn't": a closed SwiftUI window is hidden, nothing
+handled the AppKit reopen event, and the app was left alive but unreachable —
+indistinguishable from a crash except by quitting and relaunching.
+
+Two fixes were needed together, and neither was visible from the other's
+viewpoint. `applicationShouldHandleReopen` restores the window on a Dock click.
+`applicationShouldTerminateAfterLastWindowClosed` returning false stops the app
+quitting when the last window closes — and moving from `WindowGroup` to a
+singleton `Window` made that second one necessary, because without it closing the
+window quit the app and stopped the server, the opposite of the decision.
+
+The lesson worth keeping: "the server survives the window closing" and "the app
+remains usable" are different claims. The first was tested, and the second was
+assumed because it sounded like the same sentence.
+
 ---
 
 ## Rejected alternatives
