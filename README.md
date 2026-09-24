@@ -48,6 +48,50 @@ Two notes:
   rather than `$HOME`, so redirecting HOME does not isolate the app. If it is set
   in your shell, the app will use it instead of the real support directory.
 
+## Update
+
+```sh
+./scripts/update.sh          # rebuild from source, install to /Applications
+```
+
+Or double-click **`Update Readeck.command`** in Finder.
+
+Rebuilds the current checkout and installs it to `/Applications/Readeck.app`. It
+refuses if the tree is dirty or the app is already running, checks the built
+engine against the pinned checksum, and verifies the signature before replacing
+anything. Set `INSTALL_DIR` to install somewhere else.
+
+It deliberately does **not** download the released bundle. A local build carries
+no `com.apple.quarantine` attribute, and quarantine is the only thing that makes
+macOS refuse an ad-hoc signed app — so this path never prompts Gatekeeper.
+Browsers set that attribute; `curl`, `gh` and `URLSession` do not, which is why
+the release notes tell you to download from a terminal.
+
+## Release
+
+```sh
+./scripts/release.sh --dry-run   # run the gate, package, print the notes
+./scripts/release.sh             # tag, push and publish
+```
+
+The tag is the engine version, matching Readeck's own tag exactly — no `v`
+prefix. A launcher-only fix with no engine bump sets `RELEASE_REVISION` in
+`scripts/versions.sh`, producing `0.23.4-1`.
+
+`release.sh` refuses on a dirty tree, refuses on an existing tag (local or
+remote), and **refuses unless `verify.sh` reports 35/35**. There is no override:
+if the suite is failing, fixing it is the work.
+
+It builds locally rather than in CI. The acceptance suite drives `NSApplication`
+and `WKWebView` and needs a real GUI session, so a runner would have to skip
+exactly the checks the suite exists for.
+
+The release carries the built `.app` as a zip plus a `.sha256`, because a release
+you can re-download is a rollback point. Two packaging details were measured
+rather than assumed: `--sequesterRsrc` is required (a zip made without it
+extracts to an app with an *invalid* signature), and extraction wants
+`ditto -x -k` rather than `unzip`.
+
 ## Tools menu
 
 - **Back Up Now** (⇧⌘B) — a snapshot on demand. Safe while the server is running:
@@ -79,10 +123,14 @@ Resources/Info.plist              bundle metadata (incl. NSAllowsLocalNetworking
 Resources/logo-square.svg         Readeck's own artwork, unmodified
 Resources/NOTICE                  Readeck attribution + AGPL source offer
 scripts/build.sh                  fetch -> verify -> assemble -> sign
+scripts/versions.sh               single source of truth for versions
+scripts/update.sh                 rebuild and install to /Applications
+scripts/release.sh                gate, package, tag, push, publish
 scripts/verify.sh                 end-to-end acceptance suite
 scripts/build-icon.sh             SVG -> AppIcon.icns
 scripts/svg2png.swift             SVG rasteriser (macOS reads SVG natively)
 scripts/inspect-icon.swift        catches a blank or flattened icon render
+Update Readeck.command            double-clickable wrapper for update.sh
 vendor/                           pinned engine, gitignored
 dist/                             built bundle, gitignored
 ```
@@ -113,11 +161,12 @@ Readeck.app/Contents/
 
 ## Upgrade
 
-Engine version is pinned in `scripts/build.sh`. To move to a new release, update
-`ENGINE_VERSION` and `ENGINE_SHA256`, then rebuild. A snapshot is taken
-automatically before the first `serve` that runs a new engine version, because
-migrations run inside `serve` and two of them (M07, M16) rewrite the archive
-`.zip` files on disk.
+Engine version and its checksum live in `scripts/versions.sh`, which `build.sh`,
+`verify.sh`, `update.sh` and `release.sh` all source. To move to a new release,
+update `ENGINE_VERSION` and `ENGINE_SHA256` there and rebuild — or run
+`update.sh`. A snapshot is taken automatically before the first `serve` that runs
+a new engine version, because migrations run inside `serve` and two of them (M07,
+M16) rewrite the archive `.zip` files on disk.
 
 **If that snapshot cannot be written, the app refuses to start.** A failed backup
 is not something to log and move past when the next step rewrites files in place.

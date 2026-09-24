@@ -58,6 +58,10 @@ log "building"
 
 log "packaging"
 rm -f "${ZIP}" "${CHECKSUM}"
+# --sequesterRsrc is required, not decorative: measured, a zip made without it
+# extracts to an app whose signature is invalid ("a sealed resource is missing
+# or invalid"). The cost is an AppleDouble __MACOSX entry that `unzip` shows as
+# a stray folder, which is why the notes tell people to extract with ditto.
 ditto -c -k --sequesterRsrc --keepParent "${BUILT}" "${ZIP}"
 zip_sha="$(shasum -a 256 "${ZIP}" | awk '{print $1}')"
 printf '%s  %s\n' "${zip_sha}" "$(basename "${ZIP}")" > "${CHECKSUM}"
@@ -96,13 +100,15 @@ Readeck's own UI. Data lives in \`~/Library/Application Support/Readeck/\`.
 refused by macOS on first launch.
 
     gh release download ${RELEASE_TAG} --pattern '*.zip' -D ~/Downloads
-    unzip ~/Downloads/${ARTIFACT_BASE}.zip -d /Applications
+    ditto -x -k ~/Downloads/${ARTIFACT_BASE}.zip /Applications
 
 Or, without \`gh\`:
 
     curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip \\
       https://github.com/kiran-brahma/readeck-macos-app/releases/download/${RELEASE_TAG}/${ARTIFACT_BASE}.zip
-    unzip ~/Downloads/${ARTIFACT_BASE}.zip -d /Applications
+    ditto -x -k ~/Downloads/${ARTIFACT_BASE}.zip /Applications
+
+\`unzip\` works as well, but leaves a harmless \`__MACOSX\` folder behind.
 
 **If you did download it in a browser**, macOS will refuse the first launch.
 Open **System Settings → Privacy & Security** and click **Open Anyway** for
