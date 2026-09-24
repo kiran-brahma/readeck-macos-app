@@ -236,14 +236,16 @@ Each slice is independently verifiable; none is a layer.
 
 ### Acceptance tests
 
-Slices 1–8 are implemented. The acceptance tests below are encoded in
-`scripts/verify.sh`, which runs against a throwaway `READECK_LAUNCHER_HOME` so
-it never touches a real library; it currently reports 35 checks passing.
+Slices 1–8 are implemented and shipped as **0.23.4**. The acceptance tests below
+are encoded in `scripts/verify.sh`, which runs against a throwaway
+`READECK_LAUNCHER_HOME` so it never touches a real library; it reports 35 checks
+passing and gates every release.
 
-Three things are not machine-checkable and need a human: the Dock icon, the
-**Back Up Now** menu item, and `⌘W` keeping the app and server alive. (The last
+Three checks are not machine-checkable and were confirmed by hand: the Dock icon,
+the **Back Up Now** menu item, and `⌘W` keeping the app and server alive. The last
 follows from `applicationShouldTerminateAfterLastWindowClosed` defaulting to
-false, which the app does not override — reasoned, not measured.)
+false, which the app does not override — but reasoning is not evidence, and it was
+verified rather than assumed.
 
 | # | Test | Passes when |
 |---|---|---|
