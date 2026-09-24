@@ -14,16 +14,13 @@
 
 set -euo pipefail
 
-ENGINE_VERSION="0.23.4"
-ENGINE_ARCH="arm64"
-ENGINE_SHA256="1c9f58b8d63a682c3a7ca2a6c6c267d5e2fbe31b47c606e21adc2195417b64d9"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/versions.sh
+source "${ROOT}/scripts/versions.sh"
 
 APP_NAME="Readeck"
 BUNDLE_ID="dev.kiranbrahma.readeck"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENGINE_FILE="readeck-${ENGINE_VERSION}-macos-${ENGINE_ARCH}"
-ENGINE_URL="https://codeberg.org/readeck/readeck/releases/download/${ENGINE_VERSION}/${ENGINE_FILE}"
 VENDOR="${ROOT}/vendor"
 APP="${ROOT}/dist/${APP_NAME}.app"
 
@@ -81,7 +78,7 @@ cp "${VENDOR}/${ENGINE_FILE}" "${APP}/Contents/MacOS/readeck-server"
 chmod +x "${APP}/Contents/MacOS/${APP_NAME}" "${APP}/Contents/MacOS/readeck-server"
 xattr -c "${APP}/Contents/MacOS/readeck-server" 2>/dev/null || true
 
-sed -e "s|@VERSION@|${ENGINE_VERSION}|g" \
+sed -e "s|@VERSION@|${RELEASE_TAG}|g" \
     -e "s|@BUNDLE_ID@|${BUNDLE_ID}|g" \
     "${ROOT}/Resources/Info.plist" > "${APP}/Contents/Info.plist"
 printf 'APPL????' > "${APP}/Contents/PkgInfo"

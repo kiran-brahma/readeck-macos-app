@@ -20,6 +20,8 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/versions.sh
+source "${ROOT}/scripts/versions.sh"
 APP="${ROOT}/dist/Readeck.app"
 BIN="${APP}/Contents/MacOS/Readeck"
 PORT=8000
@@ -92,7 +94,7 @@ engine="$(engine_pids)"
 chk "engine spawned"                  "test -n '${engine// /}'"
 chk "engine args correct"             "pgrep -f 'readeck-server serve -config ${SUPPORT}/config.toml -host 127.0.0.1 -port ${PORT}'"
 chk "server.json records the pid"     "grep -q $(echo ${engine} | awk '{print $1}') '${SUPPORT}/server.json'"
-chk "/api/info answers"               "curl -s --max-time 3 http://127.0.0.1:${PORT}/api/info | grep -q 0.23"
+chk "/api/info answers"               "curl -s --max-time 3 http://127.0.0.1:${PORT}/api/info | grep -q '${ENGINE_VERSION}'"
 chk "webview loaded Readeck's UI"     "grep -q '\"path\":\"/onboarding\"' '${LOG}'"
 chk "config.toml has absolute paths"  "grep -q 'data_directory = \"${SUPPORT}/data\"' '${SUPPORT}/config.toml'"
 chk "lock file created"               "test -f '${SUPPORT}/.launcher.lock'"
@@ -137,13 +139,13 @@ echo "0.0.0" > "${SUPPORT}/engine-version"
 launch
 sleep 14
 chk "engine started"                  "test \$(engine_count) = 1"
-chk "a snapshot was taken"            "ls -1 '${BACKUPS}'/db-before-0.23*.sqlite3 >/dev/null 2>&1"
-snapshot="$(ls -t "${BACKUPS}"/db-before-0.23*.sqlite3 2>/dev/null | head -1)"
+chk "a snapshot was taken"            "ls -1 '${BACKUPS}'/db-before-${ENGINE_VERSION}*.sqlite3 >/dev/null 2>&1"
+snapshot="$(ls -t "${BACKUPS}"/db-before-${ENGINE_VERSION}*.sqlite3 2>/dev/null | head -1)"
 chk "snapshot has no sidecars"        "test \$(ls '${snapshot}'-* 2>/dev/null | wc -l | tr -d ' ') = 0"
 chk "snapshot journal mode is delete" "test \"\$(sqlite3 '${snapshot}' 'PRAGMA journal_mode;')\" = delete"
 chk "snapshot passes integrity check" "test \"\$(sqlite3 '${snapshot}' 'PRAGMA integrity_check;')\" = ok"
 chk "snapshot carries the schema"     "test \$(sqlite3 '${snapshot}' '.tables' | wc -w | tr -d ' ') -ge 10"
-chk "version record updated"          "test \"\$(cat '${SUPPORT}/engine-version')\" = 0.23.4"
+chk "version record updated"          "test \"\$(cat '${SUPPORT}/engine-version')\" = ${ENGINE_VERSION}"
 
 # ---------------------------------------------------------------------------
 section 'G. an unusable backup directory blocks the upgrade entirely'
@@ -173,7 +175,7 @@ chk "port released"                   "! lsof -nP -iTCP:${PORT} -sTCP:LISTEN"
 
 # ---------------------------------------------------------------------------
 section 'I. packaged artifact integrity'
-expected="$(awk -F'"' '/^ENGINE_SHA256=/{print $2}' "${ROOT}/scripts/build.sh")"
+expected="${ENGINE_SHA256}"
 actual="$(shasum -a 256 "${APP}/Contents/MacOS/readeck-server" | awk '{print $1}')"
 chk "engine is byte-identical to upstream" "test '${actual}' = '${expected}'"
 chk "bundle signature is valid"       "codesign --verify --deep --strict '${APP}'"
