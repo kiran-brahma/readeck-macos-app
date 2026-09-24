@@ -117,8 +117,8 @@ and it needs no \`--pattern\` here: dropping it fetches the checksum too.
 Or, without \`gh\`:
 
     base=https://github.com/${REPO}/releases/download/${RELEASE_TAG}
-    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip        "$base/${ARTIFACT_BASE}.zip"
-    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip.sha256 "$base/${ARTIFACT_BASE}.zip.sha256"
+    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip        "\$base/${ARTIFACT_BASE}.zip"
+    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip.sha256 "\$base/${ARTIFACT_BASE}.zip.sha256"
     (cd ~/Downloads && shasum -a 256 -c ${ARTIFACT_BASE}.zip.sha256)
     ditto -x -k ~/Downloads/${ARTIFACT_BASE}.zip /Applications
 
