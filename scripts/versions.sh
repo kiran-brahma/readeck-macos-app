@@ -17,7 +17,7 @@ ENGINE_SHA256="1c9f58b8d63a682c3a7ca2a6c6c267d5e2fbe31b47c606e21adc2195417b64d9"
 # Bumped only for a launcher-only fix with no engine change, producing
 # 0.23.4-1, 0.23.4-2, ... so a release tag can never collide with an upstream
 # engine tag. Empty for a normal release.
-RELEASE_REVISION=""
+RELEASE_REVISION="1"
 
 # Derived.
 ENGINE_FILE="readeck-${ENGINE_VERSION}-macos-${ENGINE_ARCH}"
