@@ -25,6 +25,11 @@ CHECKSUM="${ZIP}.sha256"
 NOTES="$(mktemp)"
 trap 'rm -f "${NOTES}"' EXIT
 
+# Derived from the remote rather than hardcoded, so the notes cannot drift from
+# where the release actually lives.
+REPO="$(cd "${ROOT}" && gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+[[ -n "${REPO}" ]] || die "could not determine the GitHub repository from the origin remote"
+
 dry_run=false
 [[ "${1:-}" == "--dry-run" ]] && dry_run=true
 
@@ -99,13 +104,22 @@ Readeck's own UI. Data lives in \`~/Library/Application Support/Readeck/\`.
 \`com.apple.quarantine\`; browsers do, and a quarantined ad-hoc signed app is
 refused by macOS on first launch.
 
-    gh release download ${RELEASE_TAG} --pattern '*.zip' -D ~/Downloads
+**Download both files, not just the zip**: the checksum is how you verify what
+you got.
+
+    gh release download ${RELEASE_TAG} --repo ${REPO} -D ~/Downloads
+    (cd ~/Downloads && shasum -a 256 -c ${ARTIFACT_BASE}.zip.sha256)
     ditto -x -k ~/Downloads/${ARTIFACT_BASE}.zip /Applications
+
+\`gh release download\` needs \`--repo\` unless you are already inside a clone,
+and it needs no \`--pattern\` here: dropping it fetches the checksum too.
 
 Or, without \`gh\`:
 
-    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip \\
-      https://github.com/kiran-brahma/readeck-macos-app/releases/download/${RELEASE_TAG}/${ARTIFACT_BASE}.zip
+    base=https://github.com/${REPO}/releases/download/${RELEASE_TAG}
+    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip        "$base/${ARTIFACT_BASE}.zip"
+    curl -L -o ~/Downloads/${ARTIFACT_BASE}.zip.sha256 "$base/${ARTIFACT_BASE}.zip.sha256"
+    (cd ~/Downloads && shasum -a 256 -c ${ARTIFACT_BASE}.zip.sha256)
     ditto -x -k ~/Downloads/${ARTIFACT_BASE}.zip /Applications
 
 \`unzip\` works as well, but leaves a harmless \`__MACOSX\` folder behind.
@@ -146,6 +160,7 @@ git -C "${ROOT}" push origin "refs/tags/${RELEASE_TAG}"
 
 log "publishing"
 gh release create "${RELEASE_TAG}" \
+    --repo "${REPO}" \
     --title "Version ${RELEASE_TAG}" \
     --notes-file "${NOTES}" \
     --verify-tag \
